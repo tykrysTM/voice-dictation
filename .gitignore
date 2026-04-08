@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.Dockerfile
+docker-compose*.yml
+
+# Git
+.git/
+
+# Node (jeśli używany w frontend)
+node_modules/
+*.js.map
+
+# Logs
+*.log
+
+# Temporary
+tmp/
+temp/
+*.tmp

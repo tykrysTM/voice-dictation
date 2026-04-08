@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: voice-dictation
+  namespace: voice-dictation
+  labels:
+    app: voice-dictation
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: voice-dictation

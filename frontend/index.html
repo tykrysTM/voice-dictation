@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Dictation — Diktauj swoje myśli</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1 class="title">🎤 Voice Dictation</h1>
+      <p class="subtitle">Dyktuj swoje myśli w polsku lub angielsku</p>
+    </header>
+
+    <nav class="tab-nav" role="tablist">
+      <button class="tab-btn active" data-tab="tab-dictation" role="tab" aria-selected="true">Dyktuj</button>
+      <button class="tab-btn" data-tab="tab-history" role="tab" aria-selected="false">Historia</button>
+    </nav>
+
+    <main class="card">
+      <!-- Dyktacja -->
+      <div id="tab-dictation" class="tab-panel">
+        <div class="controls">
+          <div class="form-group">
+            <label for="backend-url">Backend URL:</label>
+            <input type="text" id="backend-url" value="http://dictation.lab.tmforge.pl/transcribe">
+          </div>
+
+          <div class="form-group">
+            <label for="language">Język:</label>
+            <select id="language">
+              <option value="pl">Polski 🇵🇱</option>
+              <option value="en">Angielski 🇬🇧</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="model">Model LLM:</label>
+            <select id="model">
+              <option value="local">Lokalny (qwen3.5:9b) ⚡</option>
+              <option value="cloud">Cloud (Claude) 🌩️</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="system-prompt">Prompt dla LLM:</label>
+            <textarea id="system-prompt" rows="2" placeholder="Przekształć to na profesjonalną wiadomość..."></textarea>
+          </div>
+        </div>
+
+        <div class="recorder">
+          <button id="start-rec" class="btn btn-primary">🎤 Nagrywaj (Ctrl+Shift+D)</button>
+          <button id="stop-rec" class="btn btn-danger" disabled>⏹ Stop</button>
+          <span id="rec-status" class="status">Gotowy do nagrywania</span>
+        </div>
+
+        <div class="preview">
+          <h3>Podgląd transkrypcji:</h3>
+          <textarea id="transcribed-text" rows="4" placeholder="Transkrypcja..."></textarea>
+        </div>
+
+        <div class="result">
+          <h3>Profesjonalna wersja:</h3>
+          <div id="rewritten-text" class="result-text" placeholder="Wynik pojawi się tutaj..."></div>
+          <div class="actions">
+            <button id="copy-btn" class="btn btn-success">📋 Kopiuj do schowka</button>
+            <button id="paste-btn" class="btn btn-secondary">📋 Wklej z schowka</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historia -->
+      <div id="tab-history" class="tab-panel hidden">
+        <h3>Wydane sesje:</h3>
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </main>
+
+    <footer>
+      <small>Voice Dictation — MVP · <a href="https://dictation.lab.tmforge.pl">dictation.lab.tmforge.pl</a></small>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voice-dictation
+  namespace: voice-dictation
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+    - host: dictation.lab.tmforge.pl
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: voice-dictation
+                port:
+                  number: 8000
+  tls:
+    - hosts:
+        - dictation.lab.tmforge.pl
+      secretName: voice-dictation-tls

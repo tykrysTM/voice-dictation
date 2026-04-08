@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-dictation
+  namespace: voice-dictation
+  labels:
+    app: voice-dictation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-dictation
+  template:
+    metadata:
+      labels:
+        app: voice-dictation
+    spec:
+      imagePullSecrets:
+        - name: ghcr-credentials
+      containers:
+        - name: voice-dictation
+          image: ghcr.io/tykrystm/voice-dictation:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: voice-dictation-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
