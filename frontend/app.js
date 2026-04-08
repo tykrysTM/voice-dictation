@@ -21,6 +21,7 @@ const elements = {
   language: document.getElementById("language"),
   model: document.getElementById("model"),
   systemPrompt: document.getElementById("system-prompt"),
+  translateEn: document.getElementById("translate-en"),
   copyBtn: document.getElementById("copy-btn"),
   pasteBtn: document.getElementById("paste-btn")
 };
@@ -135,12 +136,17 @@ async function blobToBase64(blob) {
 
 async function transcribe(audioBase64) {
   try {
+    const translateToEnglish = elements.translateEn?.checked;
+    const systemPrompt = translateToEnglish
+      ? "Translate the following text to English and rewrite it as a professional, formal message. Fix any errors and improve the style."
+      : elements.systemPrompt.value;
+
     const requestBody = {
       audio: audioBase64,
       language: elements.language.value,
       model: elements.model.value,
       use_local: elements.model.value === "local",
-      system_prompt: elements.systemPrompt.value
+      system_prompt: systemPrompt
     };
 
     console.log("Sending to API:", requestBody);

@@ -330,6 +330,33 @@
             }
         }
 
+        #translate-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #e0e0e0;
+            font-size: 0.95em;
+            cursor: pointer;
+            padding: 10px 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #2a2a2a;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        #translate-label:hover {
+            border-color: #666;
+            background: #333;
+        }
+
+        #translate-label input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #4CAF50;
+            cursor: pointer;
+        }
+
         @media (max-width: 640px) {
             .controls-row {
                 flex-direction: column;
@@ -359,6 +386,10 @@
                 <option value="local">Local Model</option>
                 <option value="cloud">Cloud Model</option>
             </select>
+            <label id="translate-label">
+                <input type="checkbox" id="translate-en">
+                Translate to English
+            </label>
         </div>
 
         <div class="content-area">
