@@ -14,10 +14,12 @@ from typing import Optional, Literal
 
 import httpx
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
@@ -33,8 +35,17 @@ WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 # Global whisper model instance
 _whisper_model: Optional[WhisperModel] = None
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _whisper_model
+    _whisper_model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", cpu_threads=4)
+    yield
+    _whisper_model = None
+
+
 # Create FastAPI app
-app = FastAPI(title="Voice Dictation API")
+app = FastAPI(title="Voice Dictation API", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -68,13 +79,6 @@ class TranscribeResponse(BaseModel):
     language: str
     model: str
     success: bool = True
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    global _whisper_model
-    _whisper_model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", cpu_threads=4)
 
 
 # Helper functions
@@ -154,12 +158,14 @@ async def transcribe(request: TranscribeRequest):
     )
 
 
-# Exception handler for 422 validation errors
-@app.exception_handler(422)
+# Convert Pydantic validation errors (422) to 400
+@app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
+    errors = exc.errors()
+    messages = [e.get("msg", "Validation error") for e in errors]
     return JSONResponse(
         status_code=400,
-        content={"detail": "Invalid request"},
+        content={"detail": "; ".join(messages)},
     )
 
 
