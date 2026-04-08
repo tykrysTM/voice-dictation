@@ -31,15 +31,19 @@ load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.5:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")  # e.g. http://192.168.1.5:8001
 
-# Global whisper model instance
+# Global whisper model instance (used only when WHISPER_SERVER_URL is not set)
 _whisper_model: Optional[WhisperModel] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _whisper_model
-    _whisper_model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", cpu_threads=4)
+    if not WHISPER_SERVER_URL:
+        _whisper_model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", cpu_threads=4)
+    else:
+        print(f"Using remote Whisper server: {WHISPER_SERVER_URL}")
     yield
     _whisper_model = None
 
@@ -82,10 +86,20 @@ class TranscribeResponse(BaseModel):
 
 
 # Helper functions
-def transcribe_audio(audio_bytes: bytes, language: str) -> str:
-    """
-    Transcribe audio bytes using Whisper.
-    """
+async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
+    """Send audio to remote faster-whisper server (GPU on 192.168.1.5)."""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.post(
+            f"{WHISPER_SERVER_URL}/v1/audio/transcriptions",
+            files={"file": ("audio.webm", audio_bytes, "audio/webm")},
+            data={"language": language, "model": "large-v3"},
+        )
+        r.raise_for_status()
+        return r.json()["text"].strip()
+
+
+def transcribe_audio_local(audio_bytes: bytes, language: str) -> str:
+    """Transcribe audio bytes using local Whisper model (CPU fallback)."""
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
@@ -120,7 +134,9 @@ async def rewrite_with_ollama(text: str, system_prompt: str) -> str:
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "whisper_loaded": _whisper_model is not None}
+    if WHISPER_SERVER_URL:
+        return {"status": "ok", "whisper": "remote", "whisper_url": WHISPER_SERVER_URL}
+    return {"status": "ok", "whisper": "local", "whisper_loaded": _whisper_model is not None}
 
 
 @app.post("/transcribe", response_model=TranscribeResponse)
@@ -134,11 +150,14 @@ async def transcribe(request: TranscribeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {str(e)}")
 
-    # Transcribe in executor to avoid blocking
-    loop = asyncio.get_event_loop()
-    original = await loop.run_in_executor(
-        None, transcribe_audio, audio_bytes, request.language
-    )
+    # Transcribe: remote GPU server or local CPU fallback
+    if WHISPER_SERVER_URL:
+        original = await transcribe_audio_remote(audio_bytes, request.language)
+    else:
+        loop = asyncio.get_event_loop()
+        original = await loop.run_in_executor(
+            None, transcribe_audio_local, audio_bytes, request.language
+        )
 
     if not original:
         raise HTTPException(status_code=400, detail="No speech detected in audio")
