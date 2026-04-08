@@ -34,7 +34,7 @@ def test_transcribe_invalid_language():
 
 
 def test_transcribe_success():
-    with patch("main.transcribe_audio", return_value="test transcribed text"), \
+    with patch("main.transcribe_audio_local", return_value="test transcribed text"), \
          patch("main.rewrite_with_ollama", new_callable=AsyncMock, return_value="Professional version."), \
          patch("main._whisper_model", MagicMock()):
         import base64
