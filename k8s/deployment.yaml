@@ -26,24 +26,37 @@ spec:
           envFrom:
             - secretRef:
                 name: voice-dictation-secrets
+          env:
+            # Cache Whisper models on host to avoid re-download on restart
+            - name: HF_HOME
+              value: /cache/huggingface
           resources:
             requests:
               cpu: "250m"
-              memory: "512Mi"
+              memory: "1Gi"
             limits:
-              cpu: "1000m"
-              memory: "2Gi"
+              cpu: "2000m"
+              memory: "4Gi"
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 30
+            # Give plenty of time for model download on first start
+            initialDelaySeconds: 120
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 10
-            failureThreshold: 3
+            failureThreshold: 6
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /data/voice-dictation-cache
+            type: DirectoryOrCreate
