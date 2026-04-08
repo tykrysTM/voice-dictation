@@ -88,7 +88,7 @@ class TranscribeResponse(BaseModel):
 # Helper functions
 async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
     """Send audio to remote faster-whisper server (GPU on 192.168.1.5)."""
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         r = await client.post(
             f"{WHISPER_SERVER_URL}/v1/audio/transcriptions",
             files={"file": ("audio.webm", audio_bytes, "audio/webm")},
