@@ -28,8 +28,8 @@ spec:
                 name: voice-dictation-secrets
           resources:
             requests:
-              cpu: "200m"
-              memory: "256Mi"
+              cpu: "250m"
+              memory: "512Mi"
             limits:
               cpu: "1000m"
               memory: "2Gi"
@@ -37,13 +37,13 @@ spec:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 3

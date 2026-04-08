@@ -1,90 +1,409 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voice Dictation — Diktauj swoje myśli</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Dictation — TMForge</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            border-bottom: 2px solid #333;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            color: #fff;
+            font-weight: 600;
+            letter-spacing: -1px;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #start-rec {
+            background: #4CAF50;
+            color: white;
+        }
+
+        #start-rec:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+
+        #start-rec:active {
+            transform: translateY(0);
+        }
+
+        #stop-rec {
+            background: #f44336;
+            color: white;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #stop-rec:not(:disabled) {
+            opacity: 1;
+            cursor: pointer;
+        }
+
+        #stop-rec:not(:disabled):hover {
+            background: #da190b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+        }
+
+        select {
+            padding: 10px 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #2a2a2a;
+            color: #e0e0e0;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        select:hover {
+            border-color: #666;
+            background: #333;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        .content-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex: 1;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-header {
+            background: #2a2a2a;
+            padding: 15px;
+            border-bottom: 1px solid #333;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .panel-body {
+            padding: 15px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #transcribed-text {
+            width: 100%;
+            min-height: 300px;
+            padding: 10px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border: none;
+            resize: none;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        #transcribed-text:focus {
+            outline: none;
+            box-shadow: inset 0 0 0 2px #4CAF50;
+        }
+
+        #rewritten-text {
+            width: 100%;
+            min-height: 300px;
+            padding: 10px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-size: 0.95em;
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        #rewritten-text.error {
+            color: #f44336;
+            font-weight: 500;
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #copy-btn,
+        #paste-btn {
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #copy-btn:hover,
+        #paste-btn:hover {
+            background: #0b7dda;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+
+        #copy-btn:active,
+        #paste-btn:active {
+            transform: translateY(0);
+        }
+
+        .status-bar {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px 15px;
+            margin-bottom: 20px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: #4CAF50;
+        }
+
+        .status-bar.recording {
+            background: #4CAF50;
+            color: #000;
+            font-weight: 600;
+        }
+
+        .status-bar.error {
+            background: #f44336;
+            color: #fff;
+        }
+
+        .settings-section {
+            margin-top: 30px;
+            border-top: 2px solid #333;
+            padding-top: 20px;
+        }
+
+        .settings-toggle {
+            background: #333;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .settings-toggle:hover {
+            background: #3a3a3a;
+            border-color: #666;
+        }
+
+        .settings-content {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #252525;
+            border: 1px solid #333;
+            border-radius: 6px;
+        }
+
+        .settings-content.open {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        #backend-url {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 0.95em;
+        }
+
+        #backend-url:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        #system-prompt {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9em;
+            resize: vertical;
+        }
+
+        #system-prompt:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+        }
+
+        @media (max-width: 1024px) {
+            .content-area {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 2em;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .controls-row {
+                flex-direction: column;
+            }
+
+            button,
+            select {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <header class="header">
-      <h1 class="title">🎤 Voice Dictation</h1>
-      <p class="subtitle">Dyktuj swoje myśli w polsku lub angielsku</p>
-    </header>
+    <div class="container">
+        <header>
+            <h1>🎤 Voice Dictation</h1>
+        </header>
 
-    <nav class="tab-nav" role="tablist">
-      <button class="tab-btn active" data-tab="tab-dictation" role="tab" aria-selected="true">Dyktuj</button>
-      <button class="tab-btn" data-tab="tab-history" role="tab" aria-selected="false">Historia</button>
-    </nav>
-
-    <main class="card">
-      <!-- Dyktacja -->
-      <div id="tab-dictation" class="tab-panel">
-        <div class="controls">
-          <div class="form-group">
-            <label for="backend-url">Backend URL:</label>
-            <input type="text" id="backend-url" value="http://dictation.lab.tmforge.pl/transcribe">
-          </div>
-
-          <div class="form-group">
-            <label for="language">Język:</label>
+        <div class="controls-row">
+            <button id="start-rec">Start Recording</button>
+            <button id="stop-rec" disabled>Stop Recording</button>
             <select id="language">
-              <option value="pl">Polski 🇵🇱</option>
-              <option value="en">Angielski 🇬🇧</option>
+                <option value="pl">Polish (PL)</option>
+                <option value="en">English (EN)</option>
             </select>
-          </div>
-
-          <div class="form-group">
-            <label for="model">Model LLM:</label>
             <select id="model">
-              <option value="local">Lokalny (qwen3.5:9b) ⚡</option>
-              <option value="cloud">Cloud (Claude) 🌩️</option>
+                <option value="local">Local Model</option>
+                <option value="cloud">Cloud Model</option>
             </select>
-          </div>
-
-          <div class="form-group">
-            <label for="system-prompt">Prompt dla LLM:</label>
-            <textarea id="system-prompt" rows="2" placeholder="Przekształć to na profesjonalną wiadomość..."></textarea>
-          </div>
         </div>
 
-        <div class="recorder">
-          <button id="start-rec" class="btn btn-primary">🎤 Nagrywaj (Ctrl+Shift+D)</button>
-          <button id="stop-rec" class="btn btn-danger" disabled>⏹ Stop</button>
-          <span id="rec-status" class="status">Gotowy do nagrywania</span>
+        <div class="content-area">
+            <div class="panel">
+                <div class="panel-header">Raw Transcript</div>
+                <div class="panel-body">
+                    <textarea id="transcribed-text" readonly></textarea>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Polished</div>
+                <div class="panel-body">
+                    <div id="rewritten-text"></div>
+                </div>
+            </div>
         </div>
 
-        <div class="preview">
-          <h3>Podgląd transkrypcji:</h3>
-          <textarea id="transcribed-text" rows="4" placeholder="Transkrypcja..."></textarea>
+        <div class="actions-row">
+            <button id="copy-btn">Copy Polished</button>
+            <button id="paste-btn">Paste to Transcript</button>
         </div>
 
-        <div class="result">
-          <h3>Profesjonalna wersja:</h3>
-          <div id="rewritten-text" class="result-text" placeholder="Wynik pojawi się tutaj..."></div>
-          <div class="actions">
-            <button id="copy-btn" class="btn btn-success">📋 Kopiuj do schowka</button>
-            <button id="paste-btn" class="btn btn-secondary">📋 Wklej z schowka</button>
-          </div>
+        <div class="status-bar" id="rec-status">Ready</div>
+
+        <div class="settings-section">
+            <button class="settings-toggle" onclick="toggleSettings()">⚙️ Settings</button>
+            <div class="settings-content" id="settings-content">
+                <div class="form-group">
+                    <label for="backend-url">Backend URL:</label>
+                    <input type="url" id="backend-url" placeholder="/transcribe" value="/transcribe">
+                </div>
+                <div class="form-group">
+                    <label for="system-prompt">System Prompt:</label>
+                    <textarea id="system-prompt" placeholder="Enter system prompt here...">Przekształć to na profesjonalną, formalną wiadomość. Zachowaj sens oryginalnego tekstu, ale popraw gramatykę, interpunkcję i ogólną strukturę. Wynik powinien być gotowy do wysłania w profesjonalnym kontekście.</textarea>
+                </div>
+            </div>
         </div>
-      </div>
+    </div>
 
-      <!-- Historia -->
-      <div id="tab-history" class="tab-panel hidden">
-        <h3>Wydane sesje:</h3>
-        <div id="history-list" class="history-list"></div>
-      </div>
-    </main>
-
-    <footer>
-      <small>Voice Dictation — MVP · <a href="https://dictation.lab.tmforge.pl">dictation.lab.tmforge.pl</a></small>
-    </footer>
-  </div>
-
-  <script src="/static/app.js"></script>
+    <script src="app.js"></script>
+    <script>
+        function toggleSettings() {
+            const content = document.getElementById('settings-content');
+            content.classList.toggle('open');
+        }
+    </script>
 </body>
 </html>

@@ -3,14 +3,14 @@
  * Nagrywacz + API integration + clipboard
  */
 
-// Konfiguracja
+// Configuration
 const CONFIG = {
-  backendUrl: "http://192.168.1.5:8000/transcribe",
+  backendUrl: "/transcribe",
   hotkey: "Control+Shift+D",
   apiTimeout: 30000
 };
 
-// Elementy DOM
+// DOM Elements
 const elements = {
   startRec: document.getElementById("start-rec"),
   stopRec: document.getElementById("stop-rec"),
@@ -25,7 +25,7 @@ const elements = {
   pasteBtn: document.getElementById("paste-btn")
 };
 
-// Nagrywacz audio
+// Audio recorder
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
@@ -53,7 +53,9 @@ async function init() {
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
 
   // Default prompt
-  elements.systemPrompt.value = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl, formatuj jeśli potrzeba.";
+  if (elements.systemPrompt) {
+    elements.systemPrompt.value = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl, formatuj jeśli potrzeba.";
+  }
 
   console.log("Voice Dictation initialized");
 }
@@ -62,7 +64,7 @@ async function startRecording() {
   try {
     // Request microphone access
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    
+
     // MediaRecorder setup
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
@@ -87,21 +89,22 @@ async function startRecording() {
 
     // Start recording
     mediaRecorder.start();
-    updateUI("Nagrywanie...");
+    isRecording = true;
+    updateUI("Recording...");
     elements.startRec.disabled = true;
     elements.stopRec.disabled = false;
 
   } catch (error) {
     console.error("Mic access error:", error);
-    alert("Nie udało się uzyskać dostępu do mikrofonu: " + error.message);
-    updateUI("Błąd dostępu do mikrofonu");
+    alert("Could not access microphone: " + error.message);
+    updateUI("Microphone access error");
   }
 }
 
 function stopRecording() {
-  if (mediaRecorder && !mediaRecorder.state === "inactive") {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
     mediaRecorder.stop();
-    updateUI("Przetwarzanie...");
+    updateUI("Processing...");
   }
 }
 
@@ -109,13 +112,14 @@ function stopRecordingUI() {
   mediaRecorder?.stream.getTracks().forEach(track => track.stop());
   elements.startRec.disabled = false;
   elements.stopRec.disabled = true;
-  elements.recStatus.textContent = "Gotowy do nagrywania";
+  elements.recStatus.textContent = "Ready";
   elements.recStatus.classList.remove("recording");
+  elements.recStatus.classList.remove("error");
 }
 
 function updateUI(status) {
   elements.recStatus.textContent = status;
-  if (status.includes("Nagrywanie")) {
+  if (status.includes("Recording")) {
     elements.recStatus.classList.add("recording");
   }
 }
@@ -141,7 +145,10 @@ async function transcribe(audioBase64) {
 
     console.log("Sending to API:", requestBody);
 
-    const response = await fetch(CONFIG.backendUrl, {
+    // Use backend URL from input field or fall back to CONFIG
+    const url = (elements.backendUrl?.value?.trim() || CONFIG.backendUrl);
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -156,23 +163,29 @@ async function transcribe(audioBase64) {
     const result = await response.json();
 
     if (result.success) {
-      // Transkrypcja
+      // Transcription
       elements.transcribedText.value = result.original;
 
-      // Profesjonalna wersja
+      // Professional version
       elements.rewrittenText.textContent = result.rewritten;
-      
+      elements.rewrittenText.classList.remove("error");
+
       // Auto-focus
       elements.rewrittenText.focus();
 
       console.log("Transcription complete:", result);
     } else {
-      elements.rewrittenText.textContent = "❌ Błąd API: " + JSON.stringify(result);
+      const errorMsg = "API Error: " + JSON.stringify(result);
+      elements.rewrittenText.textContent = errorMsg;
+      elements.rewrittenText.classList.add("error");
     }
 
   } catch (error) {
     console.error("Transcribe error:", error);
-    elements.rewrittenText.textContent = "❌ Błąd: " + error.message;
+    const errorMsg = "Error: " + error.message;
+    elements.rewrittenText.textContent = errorMsg;
+    elements.rewrittenText.classList.add("error");
+    elements.recStatus.classList.add("error");
   }
 }
 
@@ -182,7 +195,7 @@ async function copyToClipboard() {
 
   try {
     await navigator.clipboard.writeText(text);
-    alert("✅ Skopiowano do schowka!");
+    alert("Copied to clipboard!");
   } catch (error) {
     console.error("Clipboard error:", error);
     fallbackCopy(text);
@@ -194,9 +207,6 @@ async function pasteFromClipboard() {
     const text = await navigator.clipboard.readText();
     if (text) {
       elements.transcribedText.value = text;
-      // Auto-transcribe
-      const audioBase64 = blobToBase64(new Blob([text], { type: "text/plain" })); // Placeholder
-      // TODO: implement text→audio conversion or direct text processing
     }
   } catch (error) {
     console.error("Paste error:", error);
@@ -211,7 +221,7 @@ function fallbackCopy(text) {
   textarea.select();
   document.execCommand("copy");
   document.body.removeChild(textarea);
-  alert("✅ Skopiowano do schowka!");
+  alert("Copied to clipboard!");
 }
 
 // Expose for debugging

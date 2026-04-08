@@ -1,6 +1,7 @@
-fastapi>=0.115.0
-uvicorn>=0.32.0
-python-multipart>=0.0.12
-whisper>=1.1.10
-ollama>=0.3.0
-pydantic>=2.10.0
+fastapi==0.115.6
+uvicorn==0.34.0
+faster-whisper==1.1.2
+httpx==0.28.1
+python-dotenv==1.0.1
+pydantic==2.10.5
+python-multipart==0.0.20

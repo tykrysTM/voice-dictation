@@ -3,20 +3,20 @@ kind: Application
 metadata:
   name: voice-dictation
   namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: tmforge
 spec:
   project: default
   source:
     repoURL: https://github.com/tykrysTM/voice-dictation.git
-    targetRevision: HEAD
+    targetRevision: main
     path: k8s
   destination:
     server: https://kubernetes.default.svc
     namespace: voice-dictation
-  sync:
-    prune: true
-    revision: HEAD
-  revisionCheckFrequency: 10s
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
