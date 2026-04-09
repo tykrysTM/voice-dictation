@@ -276,6 +276,70 @@
             padding-top: 20px;
         }
 
+        .auth-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-overlay.open {
+            display: flex;
+        }
+
+        .auth-box {
+            background: #252525;
+            border: 1px solid #444;
+            border-radius: 10px;
+            padding: 30px;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .auth-box h3 {
+            margin: 0;
+            color: #fff;
+            font-size: 1.1em;
+        }
+
+        .auth-box input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        .auth-box input[type="password"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .auth-error {
+            color: #f44336;
+            font-size: 0.9em;
+            display: none;
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .auth-buttons button {
+            padding: 8px 18px;
+            font-size: 0.95em;
+        }
+
         .settings-toggle {
             background: #333;
             color: #e0e0e0;
@@ -505,12 +569,72 @@
         </div>
     </div>
 
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-box">
+            <h3>⚙️ Settings — Authorization required</h3>
+            <input type="password" id="auth-password" placeholder="Enter password…" autocomplete="off">
+            <div class="auth-error" id="auth-error">Incorrect password.</div>
+            <div class="auth-buttons">
+                <button class="settings-toggle" onclick="closeAuthModal()">Cancel</button>
+                <button id="start-rec" style="background:#4CAF50" onclick="submitAuth()">Unlock</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
     <script>
+        let _settingsUnlocked = false;
+
         function toggleSettings() {
             const content = document.getElementById('settings-content');
-            content.classList.toggle('open');
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                return;
+            }
+            if (_settingsUnlocked) {
+                content.classList.add('open');
+            } else {
+                document.getElementById('auth-overlay').classList.add('open');
+                setTimeout(() => document.getElementById('auth-password').focus(), 50);
+            }
         }
+
+        function closeAuthModal() {
+            document.getElementById('auth-overlay').classList.remove('open');
+            document.getElementById('auth-password').value = '';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        async function submitAuth() {
+            const password = document.getElementById('auth-password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (res.ok) {
+                    _settingsUnlocked = true;
+                    closeAuthModal();
+                    document.getElementById('settings-content').classList.add('open');
+                } else {
+                    errorEl.style.display = 'block';
+                    document.getElementById('auth-password').value = '';
+                    document.getElementById('auth-password').focus();
+                }
+            } catch (e) {
+                errorEl.textContent = 'Connection error.';
+                errorEl.style.display = 'block';
+            }
+        }
+
+        document.getElementById('auth-password').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitAuth();
+            if (e.key === 'Escape') closeAuthModal();
+        });
     </script>
 </body>
 </html>

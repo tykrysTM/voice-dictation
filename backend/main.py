@@ -37,6 +37,7 @@ WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")
 WHISPER_TIMEOUT = float(os.getenv("WHISPER_TIMEOUT", "300"))
 REALTIMESTT_URL = os.getenv("REALTIMESTT_URL", "ws://192.168.1.5:8002")
+SETTINGS_PASSWORD = os.getenv("SETTINGS_PASSWORD", "AI4workFaster")
 
 _whisper_model: Optional[WhisperModel] = None
 
@@ -247,6 +248,18 @@ async def rewrite(request: RewriteRequest):
         rewritten=rewritten,
         rewrite_skipped=rewrite_skipped,
     )
+
+
+class AuthRequest(BaseModel):
+    password: str
+
+
+@app.post("/auth")
+async def authenticate(request: AuthRequest):
+    """Validate settings password — checked server-side, password never exposed in frontend."""
+    if request.password == SETTINGS_PASSWORD:
+        return {"success": True}
+    raise HTTPException(status_code=401, detail="Invalid password")
 
 
 @app.websocket("/ws/live")
