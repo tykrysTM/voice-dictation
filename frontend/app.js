@@ -24,7 +24,8 @@ const elements = {
   translateEn: document.getElementById("translate-en"),
   copyBtn: document.getElementById("copy-btn"),
   pasteBtn: document.getElementById("paste-btn"),
-  liveModeBtn: document.getElementById("live-mode-btn")
+  liveModeBtn: document.getElementById("live-mode-btn"),
+  gpuLiveBtn: document.getElementById("gpu-live-btn")
 };
 
 // Audio recorder
@@ -81,6 +82,7 @@ async function init() {
   elements.copyBtn.addEventListener("click", copyToClipboard);
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
   elements.liveModeBtn.addEventListener("click", toggleLiveMode);
+  elements.gpuLiveBtn.addEventListener("click", toggleGpuLive);
 
   // Hide Live Mode button if browser doesn't support it
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -392,6 +394,129 @@ function fallbackCopy(text) {
   document.body.removeChild(textarea);
   alert("Copied to clipboard!");
 }
+
+// ─── GPU Live Mode (WebSocket + Whisper GPU + Ollama) ───────────────────────
+
+let gpuLiveWs = null;
+let gpuAudioContext = null;
+let gpuAudioSource = null;
+let gpuAudioProcessor = null;
+let gpuMicStream = null;
+let isGpuLive = false;
+
+function toggleGpuLive() {
+  if (!isGpuLive) {
+    startGpuLive();
+  } else {
+    stopGpuLive();
+  }
+}
+
+async function startGpuLive() {
+  // Stop other modes first
+  if (isRecording) stopRecording();
+  if (isLiveMode) stopLiveMode();
+
+  try {
+    gpuMicStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  } catch (e) {
+    alert("Microphone access denied: " + e.message);
+    return;
+  }
+
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${proto}//${window.location.host}/ws/live`;
+
+  gpuLiveWs = new WebSocket(wsUrl);
+  gpuLiveWs.binaryType = "arraybuffer";
+
+  gpuLiveWs.onopen = () => {
+    gpuLiveWs.send(JSON.stringify({
+      language: elements.language.value,
+      system_prompt: elements.systemPrompt?.value || "",
+      translate_to: elements.translateEn?.checked ? "English" : "",
+      use_rewrite: elements.model.value === "local"
+    }));
+  };
+
+  gpuLiveWs.onmessage = async (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === "ready") {
+      await setupGpuAudio();
+      isGpuLive = true;
+      elements.gpuLiveBtn.classList.add("active");
+      elements.gpuLiveBtn.textContent = "⏹ Stop GPU";
+      elements.startRec.disabled = true;
+      elements.stopRec.disabled = true;
+      elements.recStatus.textContent = "GPU Live — słucham…";
+      elements.recStatus.classList.add("recording");
+      elements.transcribedText.value = "";
+      elements.rewrittenText.textContent = "";
+
+    } else if (data.type === "transcript") {
+      const cur = elements.transcribedText.value;
+      elements.transcribedText.value = cur ? cur + " " + data.text : data.text;
+
+    } else if (data.type === "rewritten") {
+      const cur = elements.rewrittenText.textContent;
+      elements.rewrittenText.textContent = cur ? cur + " " + data.text : data.text;
+
+    } else if (data.type === "error") {
+      alert("GPU Live error: " + data.message);
+      stopGpuLive();
+    }
+  };
+
+  gpuLiveWs.onerror = () => {
+    alert("Cannot connect to GPU Live backend.");
+    stopGpuLive();
+  };
+
+  gpuLiveWs.onclose = () => {
+    if (isGpuLive) stopGpuLive();
+  };
+}
+
+async function setupGpuAudio() {
+  gpuAudioContext = new AudioContext({ sampleRate: 16000 });
+  await gpuAudioContext.audioWorklet.addModule("/audio-processor.js");
+  gpuAudioSource = gpuAudioContext.createMediaStreamSource(gpuMicStream);
+  gpuAudioProcessor = new AudioWorkletNode(gpuAudioContext, "pcm-processor");
+  gpuAudioProcessor.port.onmessage = (e) => {
+    if (gpuLiveWs?.readyState === WebSocket.OPEN) {
+      gpuLiveWs.send(e.data);
+    }
+  };
+  gpuAudioSource.connect(gpuAudioProcessor);
+}
+
+function stopGpuLive() {
+  if (gpuLiveWs?.readyState === WebSocket.OPEN) {
+    try { gpuLiveWs.send(JSON.stringify({ action: "stop" })); } catch (_) {}
+    gpuLiveWs.close();
+  }
+  gpuLiveWs = null;
+
+  gpuAudioProcessor?.disconnect();
+  gpuAudioSource?.disconnect();
+  gpuMicStream?.getTracks().forEach(t => t.stop());
+  if (gpuAudioContext?.state !== "closed") gpuAudioContext?.close();
+  gpuAudioProcessor = null;
+  gpuAudioSource = null;
+  gpuAudioContext = null;
+  gpuMicStream = null;
+
+  isGpuLive = false;
+  elements.gpuLiveBtn.classList.remove("active");
+  elements.gpuLiveBtn.textContent = "⚡ GPU Live";
+  elements.startRec.disabled = false;
+  elements.stopRec.disabled = true;
+  elements.recStatus.textContent = "Ready";
+  elements.recStatus.classList.remove("recording");
+}
+
+// ─── Expose for debugging ────────────────────────────────────────────────────
 
 // Expose for debugging
 window.voiceDictation = {

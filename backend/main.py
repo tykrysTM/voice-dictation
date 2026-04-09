@@ -7,6 +7,7 @@ Voice Dictation API
 import os
 import asyncio
 import base64
+import json
 import logging
 import tempfile
 from pathlib import Path
@@ -14,8 +15,9 @@ from typing import Optional
 
 import httpx
 import uvicorn
+import websockets as ws_client
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -34,6 +36,7 @@ OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")
 WHISPER_TIMEOUT = float(os.getenv("WHISPER_TIMEOUT", "300"))
+REALTIMESTT_URL = os.getenv("REALTIMESTT_URL", "ws://192.168.1.5:8002")
 
 _whisper_model: Optional[WhisperModel] = None
 
@@ -244,6 +247,79 @@ async def rewrite(request: RewriteRequest):
         rewritten=rewritten,
         rewrite_skipped=rewrite_skipped,
     )
+
+
+@app.websocket("/ws/live")
+async def websocket_live(websocket: WebSocket):
+    """WebSocket proxy: browser audio → RealtimeSTT GPU server → Ollama rewrite → browser."""
+    await websocket.accept()
+
+    if not REALTIMESTT_URL:
+        await websocket.send_json({"type": "error", "message": "RealtimeSTT server not configured (REALTIMESTT_URL missing)"})
+        await websocket.close()
+        return
+
+    # First message: config from browser
+    config = await websocket.receive_json()
+    language = config.get("language", "pl")
+    system_prompt = config.get("system_prompt", "Przekształć to na profesjonalną, formalną wiadomość.")
+    translate_to = config.get("translate_to", "")
+    use_rewrite = config.get("use_rewrite", True)
+
+    try:
+        async with ws_client.connect(REALTIMESTT_URL) as stt_ws:
+            await stt_ws.send(json.dumps({"language": language}))
+
+            async def forward_audio():
+                """Browser → STT server: forward PCM audio chunks."""
+                try:
+                    while True:
+                        msg = await websocket.receive()
+                        if msg["type"] == "websocket.disconnect":
+                            break
+                        if msg.get("bytes"):
+                            await stt_ws.send(msg["bytes"])
+                        elif msg.get("text"):
+                            data = json.loads(msg["text"])
+                            if data.get("action") == "stop":
+                                await stt_ws.send(json.dumps({"action": "stop"}))
+                except (WebSocketDisconnect, Exception):
+                    pass
+
+            async def forward_results():
+                """STT server → browser: forward transcripts + trigger Ollama rewrite."""
+                try:
+                    async for message in stt_ws:
+                        if not isinstance(message, str):
+                            continue
+                        data = json.loads(message)
+                        if data.get("type") == "ready":
+                            await websocket.send_json({"type": "ready"})
+                        elif data.get("type") == "final":
+                            text = data.get("text", "")
+                            if not text:
+                                continue
+                            await websocket.send_json({"type": "transcript", "text": text})
+                            if use_rewrite:
+                                try:
+                                    rewritten = await rewrite_with_ollama(text, system_prompt, translate_to)
+                                    await websocket.send_json({"type": "rewritten", "text": rewritten})
+                                except Exception as e:
+                                    logger.warning(f"GPU live rewrite failed: {e}")
+                except Exception:
+                    pass
+
+            tasks = [asyncio.ensure_future(forward_audio()), asyncio.ensure_future(forward_results())]
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+
+    except Exception as e:
+        logger.error(f"WebSocket live error: {e}")
+        try:
+            await websocket.send_json({"type": "error", "message": "Could not connect to RealtimeSTT server"})
+        except Exception:
+            pass
 
 
 @app.exception_handler(RequestValidationError)
