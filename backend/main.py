@@ -70,7 +70,7 @@ class TranscribeRequest(BaseModel):
     model: str = "local"
     use_local: bool = True
     translate_to: str = ""  # e.g. "English" — overrides system_prompt with explicit translation instruction
-    system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl."
+    system_prompt: str = "Popraw gramatykę, interpunkcję i styl. Zachowaj oryginalny sens i formę tekstu. Nie zmieniaj tonu ani struktury."
 
     @field_validator("language")
     @classmethod
@@ -93,7 +93,7 @@ class RewriteRequest(BaseModel):
     text: str
     language: str = "pl"
     translate_to: str = ""
-    system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl."
+    system_prompt: str = "Popraw gramatykę, interpunkcję i styl. Zachowaj oryginalny sens i formę tekstu. Nie zmieniaj tonu ani struktury."
 
 
 class RewriteResponse(BaseModel):
