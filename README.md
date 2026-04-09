@@ -19,7 +19,7 @@ FastAPI (K8s, dictation.lab.tmforge.pl)
     │
     ▼ surowy tekst
 Ollama http://192.168.1.5:11434
-    │ model: qwen3.5:9b
+    │ model: qwen2.5:7b
     ▼ przepisany tekst (PL lub EN)
 Frontend (Vanilla JS)
 ```
@@ -43,7 +43,7 @@ Frontend (Vanilla JS)
 | Frontend | Vanilla JS, HTML/CSS, ciemny motyw |
 | Backend | Python 3.12, FastAPI, uvicorn |
 | STT | faster-whisper (large-v3 CUDA int8 na GPU lub small na CPU) |
-| LLM | Ollama + qwen3.5:9b |
+| LLM | Ollama + qwen2.5:7b |
 | Kontener | Docker, Python 3.12-slim + ffmpeg |
 | Rejestr | GHCR (`ghcr.io/tykrystm/voice-dictation`) |
 | Orkiestracja | Kubernetes (homelab), ArgoCD GitOps |
@@ -59,12 +59,12 @@ curl https://dictation.lab.tmforge.pl/health
 
 Odpowiedź (GPU server aktywny):
 ```json
-{"status": "ok", "whisper": "remote", "whisper_url": "http://192.168.1.5:8001", "ollama_model": "qwen3.5:9b"}
+{"status": "ok", "whisper": "remote", "whisper_url": "http://192.168.1.5:8001", "ollama_model": "qwen2.5:7b"}
 ```
 
 Odpowiedź (CPU fallback):
 ```json
-{"status": "ok", "whisper": "local", "whisper_loaded": true, "ollama_model": "qwen3.5:9b"}
+{"status": "ok", "whisper": "local", "whisper_loaded": true, "ollama_model": "qwen2.5:7b"}
 ```
 
 ### `POST /transcribe`
@@ -121,7 +121,7 @@ Zmienne z Kubernetes Secret (`voice-dictation-secrets`):
 | Zmienna | Opis | Wartość |
 |---------|------|---------|
 | `OLLAMA_URL` | Endpoint Ollama API | `http://192.168.1.5:11434/api/chat` |
-| `OLLAMA_MODEL` | Nazwa modelu LLM | `qwen3.5:9b` |
+| `OLLAMA_MODEL` | Nazwa modelu LLM | `qwen2.5:7b` |
 | `OLLAMA_TIMEOUT` | Timeout Ollama (s) | `120` (domyślnie) |
 | `WHISPER_MODEL` | Model CPU fallback | `small` |
 | `WHISPER_SERVER_URL` | GPU Whisper server | `http://192.168.1.5:8001` |
