@@ -14,12 +14,12 @@ FastAPI (K8s, dictation.lab.tmforge.pl)
     │
     ├─ WHISPER_SERVER_URL ustawiony?
     │   ├─ TAK → POST http://192.168.1.5:8001/v1/audio/transcriptions
-    │   │         (RTX 3080, faster-whisper large-v3, CUDA float16)
+    │   │         (RTX 3080, faster-whisper large-v3, CUDA int8)
     │   └─ NIE → WhisperModel lokalnie (CPU, model "small")
     │
     ▼ surowy tekst
 Ollama http://192.168.1.5:11434
-    │ model: qwen3.5:9b
+    │ model: gemma4:e4b
     ▼ przepisany tekst (PL lub EN)
 Frontend (Vanilla JS)
 ```
@@ -30,8 +30,10 @@ Frontend (Vanilla JS)
 - Hotkey `Ctrl+Shift+D` — start/stop nagrywania
 - Wybór języka: Polski (PL) / English (EN)
 - Checkbox **Translate to English** — tłumaczy i przepisuje na angielski
+- Licznik czasu przetwarzania (pomarańczowy pasek `Processing… Xs`)
 - Kopiowanie do schowka
 - Konfigurowalny System Prompt (panel Settings)
+- Graceful fallback: jeśli Ollama nie odpowie → zwraca oryginalny tekst zamiast błędu
 - Fallback: CPU Whisper gdy GPU server niedostępny
 
 ## Stack
@@ -40,8 +42,8 @@ Frontend (Vanilla JS)
 |---------|-------------|
 | Frontend | Vanilla JS, HTML/CSS, ciemny motyw |
 | Backend | Python 3.12, FastAPI, uvicorn |
-| STT | faster-whisper (large-v3 na GPU lub small na CPU) |
-| LLM | Ollama + qwen3.5:9b |
+| STT | faster-whisper (large-v3 CUDA int8 na GPU lub small na CPU) |
+| LLM | Ollama + gemma4:e4b |
 | Kontener | Docker, Python 3.12-slim + ffmpeg |
 | Rejestr | GHCR (`ghcr.io/tykrystm/voice-dictation`) |
 | Orkiestracja | Kubernetes (homelab), ArgoCD GitOps |
@@ -57,12 +59,12 @@ curl https://dictation.lab.tmforge.pl/health
 
 Odpowiedź (GPU server aktywny):
 ```json
-{"status": "ok", "whisper": "remote", "whisper_url": "http://192.168.1.5:8001"}
+{"status": "ok", "whisper": "remote", "whisper_url": "http://192.168.1.5:8001", "ollama_model": "gemma4:e4b"}
 ```
 
 Odpowiedź (CPU fallback):
 ```json
-{"status": "ok", "whisper": "local", "whisper_loaded": true}
+{"status": "ok", "whisper": "local", "whisper_loaded": true, "ollama_model": "gemma4:e4b"}
 ```
 
 ### `POST /transcribe`
@@ -85,8 +87,9 @@ curl -X POST https://dictation.lab.tmforge.pl/transcribe \
 | `audio` | string | wymagane | Audio webm zakodowane base64 |
 | `language` | `"pl"` / `"en"` | `"pl"` | Język mowy |
 | `use_local` | bool | `true` | `true` = Ollama rewrite, `false` = zwróć oryginalny tekst |
+| `translate_to` | string | `""` | Jeśli `"English"` — tłumaczy zamiast przepisywać |
 | `model` | string | `"local"` | Metadane (zwracane w odpowiedzi) |
-| `system_prompt` | string | PL prompt | Instrukcja dla LLM |
+| `system_prompt` | string | PL prompt | Instrukcja dla LLM (ignorowana gdy `translate_to` ustawione) |
 
 **Odpowiedź:**
 ```json
@@ -95,26 +98,45 @@ curl -X POST https://dictation.lab.tmforge.pl/transcribe \
   "rewritten": "Chciałbym przesłać wiadomość e-mail do klienta.",
   "language": "pl",
   "model": "local",
-  "success": true
+  "success": true,
+  "rewrite_skipped": false
 }
 ```
+
+Gdy Ollama niedostępna, `rewrite_skipped: true` i `rewritten == original` (brak błędu 500).
+
+**Kody odpowiedzi:**
+
+| Kod | Znaczenie |
+|-----|-----------|
+| 200 | Sukces |
+| 400 | Błędne audio lub nieobsługiwany język |
+| 502 | Błąd Whisper GPU servera |
+| 504 | Timeout Whisper GPU servera |
 
 ## Konfiguracja środowiska
 
 Zmienne z Kubernetes Secret (`voice-dictation-secrets`):
 
-| Zmienna | Opis | Przykład |
+| Zmienna | Opis | Wartość |
 |---------|------|---------|
 | `OLLAMA_URL` | Endpoint Ollama API | `http://192.168.1.5:11434/api/chat` |
-| `OLLAMA_MODEL` | Nazwa modelu | `qwen3.5:9b` |
+| `OLLAMA_MODEL` | Nazwa modelu LLM | `gemma4:e4b` |
+| `OLLAMA_TIMEOUT` | Timeout Ollama (s) | `120` (domyślnie) |
 | `WHISPER_MODEL` | Model CPU fallback | `small` |
 | `WHISPER_SERVER_URL` | GPU Whisper server | `http://192.168.1.5:8001` |
+| `WHISPER_TIMEOUT` | Timeout Whisper (s) | `300` (domyślnie) |
 
 Lokalne testy — skopiuj `.env.example` do `.env` i wypełnij.
 
 ## Whisper GPU Server (PC TM — 192.168.1.5)
 
 Własny serwer FastAPI + faster-whisper działający na Windows z RTX 3080.
+
+**Wymagania:**
+- Python 3.11+ (z python.org, nie Microsoft Store)
+- `python -m pip install faster-whisper fastapi uvicorn python-multipart nvidia-cublas-cu12`
+- CUDA Toolkit 12.x
 
 **Uruchomienie:**
 ```bat
@@ -130,19 +152,16 @@ curl http://192.168.1.5:8001/health
 
 **Endpoint:** `POST /v1/audio/transcriptions` (multipart: `file`, `language`)
 
-Model `large-v3` daje znacznie wyższą jakość transkrypcji niż `small`, szczególnie dla języka polskiego.
+**Uwaga:** Serwer nie ma auto-start — trzeba uruchamiać ręcznie po restarcie PC. `compute_type="int8"` (nie `float16`) — nie wymaga cublas przy inference.
 
 ## Lokalne testy
 
 ```bash
-# Instalacja
 pip install -r backend/requirements.txt
 
-# Testy jednostkowe
 cd backend
 pytest tests/ -v
 
-# Uruchomienie lokalne
 python main.py
 # → http://localhost:8000
 ```
@@ -151,9 +170,11 @@ python main.py
 
 GitHub Actions (`.github/workflows/ci-cd.yaml`):
 
-1. **test** — instaluje ffmpeg, uruchamia `pytest`, używa `WHISPER_MODEL=tiny`
-2. **build-and-push** (tylko po teście) — buduje obraz Docker, pushuje do GHCR z tagiem `${SHA::7}`, aktualizuje `k8s/deployment.yaml` i commituje `[skip ci]`
-3. **ArgoCD** — wykrywa zmianę w repo, synchronizuje K8s manifesty automatycznie
+1. **test** — instaluje ffmpeg, uruchamia `pytest` (`WHISPER_MODEL=tiny` zapobiega ładowaniu modelu)
+2. **build-and-push** — buduje obraz Docker, pushuje do GHCR z tagiem `${SHA::7}`, aktualizuje `k8s/deployment.yaml`, commituje `[skip ci]`
+3. **ArgoCD** — synchronizuje K8s manifesty automatycznie po wykryciu zmiany
+
+Race condition fix: `git pull -X ours origin main` przed pushem — w konflikcie na `deployment.yaml` wygrywa nowszy SHA.
 
 ## Deployment
 
@@ -161,10 +182,8 @@ GitHub Actions (`.github/workflows/ci-cd.yaml`):
 # ArgoCD Application (jednorazowo)
 kubectl apply -f k8s/argocd-app.yaml
 
-# Secret (jednorazowo lub po zmianie)
+# Secret (po każdej zmianie konfiguracji)
 kubectl apply -f k8s/secret.yaml
-
-# Ręczny restart poda
 kubectl rollout restart deployment/voice-dictation -n voice-dictation
 ```
 
@@ -175,7 +194,7 @@ kubectl rollout restart deployment/voice-dictation -n voice-dictation
 | CPU request/limit | 250m / 2000m |
 | Memory request/limit | 1Gi / 4Gi |
 | Model cache | hostPath `/data/voice-dictation-cache` → `/cache` |
-| Liveness probe delay | 120s (czas na pobranie modelu przy pierwszym starcie) |
+| Liveness probe delay | 120s |
 
 ## Struktura projektu
 
@@ -196,7 +215,7 @@ voice-dictation/
 │   ├── deployment.yaml
 │   ├── service.yaml
 │   ├── ingress.yaml
-│   ├── secret.yaml          # NIE commituj kluczy do repo publicznego
+│   ├── secret.yaml
 │   └── argocd-app.yaml
 └── .github/
     └── workflows/
