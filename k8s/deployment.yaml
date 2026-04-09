@@ -19,7 +19,7 @@ spec:
         - name: ghcr-credentials
       containers:
         - name: voice-dictation
-          image: ghcr.io/tykrystm/voice-dictation:b45b151
+          image: ghcr.io/tykrystm/voice-dictation:fcb9427
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
