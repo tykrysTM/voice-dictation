@@ -425,22 +425,6 @@
             }
         }
 
-        #gpu-live-btn {
-            background: #00897B;
-            color: white;
-        }
-
-        #gpu-live-btn:hover {
-            background: #00695C;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 137, 123, 0.3);
-        }
-
-        #gpu-live-btn.active {
-            background: #00ACC1;
-            animation: pulse 1.5s infinite;
-        }
-
         #live-mode-btn {
             background: #9C27B0;
             color: white;
@@ -523,8 +507,7 @@
                 <option value="local">With Rewrite</option>
                 <option value="cloud">Transcribe Only</option>
             </select>
-            <button id="live-mode-btn" title="Live transcription via browser Speech API">🎙 Live Mode</button>
-            <button id="gpu-live-btn" title="Live transcription via Whisper GPU (requires realtimestt_server.py on PC TM)">⚡ GPU Live</button>
+            <button id="live-mode-btn" title="Live transcription via Whisper GPU">🎙 Live Mode</button>
             <label id="translate-label">
                 <input type="checkbox" id="translate-en" checked>
                 Translate to English
