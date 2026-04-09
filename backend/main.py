@@ -85,6 +85,20 @@ class TranscribeResponse(BaseModel):
     rewrite_skipped: bool = False
 
 
+class RewriteRequest(BaseModel):
+    text: str
+    language: str = "pl"
+    translate_to: str = ""
+    system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl."
+
+
+class RewriteResponse(BaseModel):
+    original: str
+    rewritten: str
+    success: bool = True
+    rewrite_skipped: bool = False
+
+
 async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
     """Send audio to remote faster-whisper server."""
     async with httpx.AsyncClient(timeout=WHISPER_TIMEOUT) as client:
@@ -203,6 +217,31 @@ async def transcribe(request: TranscribeRequest):
         rewritten=rewritten,
         language=request.language,
         model=request.model,
+        rewrite_skipped=rewrite_skipped,
+    )
+
+
+@app.post("/rewrite", response_model=RewriteResponse)
+async def rewrite(request: RewriteRequest):
+    """Rewrite plain text with Ollama — used by Live Mode (Web Speech API)."""
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="text is empty")
+
+    rewritten = request.text
+    rewrite_skipped = False
+
+    try:
+        rewritten = await rewrite_with_ollama(request.text, request.system_prompt, request.translate_to)
+    except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:
+        logger.warning(f"Ollama rewrite failed ({type(e).__name__}), returning original")
+        rewrite_skipped = True
+    except Exception as e:
+        logger.warning(f"Ollama rewrite unexpected error: {e}, returning original")
+        rewrite_skipped = True
+
+    return RewriteResponse(
+        original=request.text,
+        rewritten=rewritten,
         rewrite_skipped=rewrite_skipped,
     )
 

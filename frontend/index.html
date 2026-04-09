@@ -337,6 +337,32 @@
             }
         }
 
+        #live-mode-btn {
+            background: #9C27B0;
+            color: white;
+        }
+
+        #live-mode-btn:hover {
+            background: #7B1FA2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(156, 39, 176, 0.3);
+        }
+
+        #live-mode-btn.active {
+            background: #E91E63;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(233, 30, 99, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(233, 30, 99, 0); }
+        }
+
+        .interim-text {
+            color: #888;
+            font-style: italic;
+        }
+
         #translate-label {
             display: flex;
             align-items: center;
@@ -393,6 +419,7 @@
                 <option value="local">With Rewrite</option>
                 <option value="cloud">Transcribe Only</option>
             </select>
+            <button id="live-mode-btn" title="Live transcription via browser Speech API">🎙 Live Mode</button>
             <label id="translate-label">
                 <input type="checkbox" id="translate-en">
                 Translate to English

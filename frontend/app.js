@@ -23,13 +23,19 @@ const elements = {
   systemPrompt: document.getElementById("system-prompt"),
   translateEn: document.getElementById("translate-en"),
   copyBtn: document.getElementById("copy-btn"),
-  pasteBtn: document.getElementById("paste-btn")
+  pasteBtn: document.getElementById("paste-btn"),
+  liveModeBtn: document.getElementById("live-mode-btn")
 };
 
 // Audio recorder
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
+
+// Live Mode (Web Speech API)
+let recognition = null;
+let isLiveMode = false;
+let liveInterimText = "";
 
 // Processing timer
 let _processingTimer = null;
@@ -74,6 +80,12 @@ async function init() {
   elements.stopRec.addEventListener("click", stopRecording);
   elements.copyBtn.addEventListener("click", copyToClipboard);
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
+  elements.liveModeBtn.addEventListener("click", toggleLiveMode);
+
+  // Hide Live Mode button if browser doesn't support it
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    elements.liveModeBtn.style.display = "none";
+  }
 
   // Default prompt
   if (elements.systemPrompt) {
@@ -223,6 +235,126 @@ async function transcribe(audioBase64) {
     elements.rewrittenText.textContent = errorMsg;
     elements.rewrittenText.classList.add("error");
     elements.recStatus.classList.add("error");
+  }
+}
+
+function toggleLiveMode() {
+  if (!isLiveMode) {
+    startLiveMode();
+  } else {
+    stopLiveMode();
+  }
+}
+
+function startLiveMode() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = elements.language.value === "pl" ? "pl-PL" : "en-US";
+
+  recognition.onstart = () => {
+    isLiveMode = true;
+    elements.liveModeBtn.classList.add("active");
+    elements.liveModeBtn.textContent = "⏹ Stop Live";
+    elements.startRec.disabled = true;
+    elements.stopRec.disabled = true;
+    elements.recStatus.textContent = "Live — słucham…";
+    elements.recStatus.classList.add("recording");
+    elements.transcribedText.value = "";
+    elements.rewrittenText.textContent = "";
+    liveInterimText = "";
+  };
+
+  recognition.onresult = (event) => {
+    let interim = "";
+    let final = "";
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        final += transcript;
+      } else {
+        interim += transcript;
+      }
+    }
+
+    // Show confirmed text + grayed interim
+    const confirmed = elements.transcribedText.value.replace(/\n\[…\].*$/, "").trimEnd();
+    if (interim) {
+      elements.transcribedText.value = confirmed + (confirmed ? "\n" : "") + "[…] " + interim;
+    }
+
+    if (final) {
+      const updated = confirmed + (confirmed ? " " : "") + final;
+      elements.transcribedText.value = updated;
+      liveInterimText = "";
+      // Trigger rewrite for the final sentence
+      sendLiveRewrite(final.trim());
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === "not-allowed") {
+      alert("Microphone access denied.");
+    }
+    stopLiveMode();
+  };
+
+  recognition.onend = () => {
+    if (isLiveMode) {
+      // Auto-restart if still in live mode (browser stops after silence)
+      recognition.start();
+    }
+  };
+
+  recognition.start();
+}
+
+function stopLiveMode() {
+  isLiveMode = false;
+  if (recognition) {
+    recognition.onend = null;
+    recognition.stop();
+    recognition = null;
+  }
+  elements.liveModeBtn.classList.remove("active");
+  elements.liveModeBtn.textContent = "🎙 Live Mode";
+  elements.startRec.disabled = false;
+  elements.stopRec.disabled = true;
+  elements.recStatus.textContent = "Ready";
+  elements.recStatus.classList.remove("recording");
+}
+
+async function sendLiveRewrite(text) {
+  if (!text || elements.model.value !== "local") return;
+
+  const translateToEnglish = elements.translateEn?.checked;
+  const url = (elements.backendUrl?.value?.trim() || "/rewrite").replace("/transcribe", "/rewrite");
+
+  try {
+    const response = await fetch("/rewrite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        language: elements.language.value,
+        system_prompt: elements.systemPrompt.value,
+        translate_to: translateToEnglish ? "English" : ""
+      })
+    });
+
+    if (!response.ok) return;
+    const result = await response.json();
+
+    if (result.success && !result.rewrite_skipped) {
+      const current = elements.rewrittenText.textContent;
+      elements.rewrittenText.textContent = current
+        ? current + " " + result.rewritten
+        : result.rewritten;
+    }
+  } catch (e) {
+    console.warn("Live rewrite error:", e);
   }
 }
 

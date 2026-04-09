@@ -147,6 +147,36 @@ def test_transcribe_use_local_false_with_translate_calls_ollama():
             assert data["rewritten"] == "Hello world."
 
 
+# --- /rewrite endpoint (Live Mode) ---
+
+def test_rewrite_success():
+    with patch("main.rewrite_with_ollama", new_callable=AsyncMock, return_value="Professional text."):
+        response = client.post("/rewrite", json={
+            "text": "chce napisac maila",
+            "language": "pl",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["original"] == "chce napisac maila"
+        assert data["rewritten"] == "Professional text."
+        assert data["rewrite_skipped"] is False
+
+
+def test_rewrite_empty_text():
+    response = client.post("/rewrite", json={"text": "   "})
+    assert response.status_code == 400
+
+
+def test_rewrite_ollama_fallback():
+    with patch("main.rewrite_with_ollama", new_callable=AsyncMock,
+               side_effect=httpx.TimeoutException("timeout")):
+        response = client.post("/rewrite", json={"text": "test tekst"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["rewrite_skipped"] is True
+        assert data["rewritten"] == "test tekst"
+
+
 # --- Whisper remote timeout → 504 ---
 
 def test_transcribe_whisper_timeout_returns_504():
