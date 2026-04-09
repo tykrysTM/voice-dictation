@@ -31,6 +31,26 @@ let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
 
+// Processing timer
+let _processingTimer = null;
+let _processingStart = null;
+
+function startProcessingTimer() {
+  _processingStart = Date.now();
+  _processingTimer = setInterval(() => {
+    const elapsed = ((Date.now() - _processingStart) / 1000).toFixed(1);
+    elements.recStatus.textContent = `Processing… ${elapsed}s`;
+  }, 100);
+}
+
+function stopProcessingTimer() {
+  if (_processingTimer) {
+    clearInterval(_processingTimer);
+    _processingTimer = null;
+    _processingStart = null;
+  }
+}
+
 // Init
 init();
 
@@ -83,6 +103,9 @@ async function startRecording() {
       // Stop recording
       stopRecordingUI();
       isRecording = false;
+
+      // Start processing timer
+      startProcessingTimer();
 
       // Send to API
       await transcribe(audioBase64);
@@ -168,6 +191,8 @@ async function transcribe(audioBase64) {
 
     const result = await response.json();
 
+    stopProcessingTimer();
+
     if (result.success) {
       // Transcription
       elements.transcribedText.value = result.original;
@@ -175,6 +200,10 @@ async function transcribe(audioBase64) {
       // Professional version
       elements.rewrittenText.textContent = result.rewritten;
       elements.rewrittenText.classList.remove("error");
+
+      elements.recStatus.textContent = result.rewrite_skipped
+        ? "Done (rewrite unavailable — showing original)"
+        : "Done";
 
       // Auto-focus
       elements.rewrittenText.focus();
@@ -184,9 +213,11 @@ async function transcribe(audioBase64) {
       const errorMsg = "API Error: " + JSON.stringify(result);
       elements.rewrittenText.textContent = errorMsg;
       elements.rewrittenText.classList.add("error");
+      elements.recStatus.textContent = "Error";
     }
 
   } catch (error) {
+    stopProcessingTimer();
     console.error("Transcribe error:", error);
     const errorMsg = "Error: " + error.message;
     elements.rewrittenText.textContent = errorMsg;
