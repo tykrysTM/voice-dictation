@@ -22,6 +22,7 @@ const elements = {
   model: document.getElementById("model"),
   systemPrompt: document.getElementById("system-prompt"),
   translateEn: document.getElementById("translate-en"),
+  rewriteBtn: document.getElementById("rewrite-btn"),
   copyBtn: document.getElementById("copy-btn"),
   pasteBtn: document.getElementById("paste-btn"),
   liveModeBtn: document.getElementById("live-mode-btn"),
@@ -79,6 +80,7 @@ async function init() {
   // UI buttons
   elements.startRec.addEventListener("click", startRecording);
   elements.stopRec.addEventListener("click", stopRecording);
+  elements.rewriteBtn.addEventListener("click", rewriteTranscript);
   elements.copyBtn.addEventListener("click", copyToClipboard);
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
   elements.liveModeBtn.addEventListener("click", toggleLiveMode);
@@ -357,6 +359,47 @@ async function sendLiveRewrite(text) {
     }
   } catch (e) {
     console.warn("Live rewrite error:", e);
+  }
+}
+
+async function rewriteTranscript() {
+  const text = elements.transcribedText.value.trim();
+  if (!text) return;
+
+  elements.rewriteBtn.disabled = true;
+  elements.rewriteBtn.textContent = "Processing…";
+  startProcessingTimer();
+
+  try {
+    const translateToEnglish = elements.translateEn?.checked;
+    const response = await fetch("/rewrite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        language: elements.language.value,
+        system_prompt: elements.systemPrompt?.value || "",
+        translate_to: translateToEnglish ? "English" : ""
+      })
+    });
+
+    stopProcessingTimer();
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    const result = await response.json();
+
+    elements.rewrittenText.textContent = result.rewritten;
+    elements.rewrittenText.classList.remove("error");
+    elements.recStatus.textContent = result.rewrite_skipped
+      ? "Done (rewrite unavailable — showing original)"
+      : "Done";
+  } catch (error) {
+    stopProcessingTimer();
+    elements.rewrittenText.textContent = "Error: " + error.message;
+    elements.rewrittenText.classList.add("error");
+  } finally {
+    elements.rewriteBtn.disabled = false;
+    elements.rewriteBtn.textContent = "✨ Polish Transcript";
   }
 }
 

@@ -191,6 +191,30 @@
             margin-bottom: 20px;
         }
 
+        #rewrite-btn {
+            padding: 10px 20px;
+            background: #FF9800;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #rewrite-btn:hover {
+            background: #F57C00;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+        }
+
+        #rewrite-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         #copy-btn,
         #paste-btn {
             padding: 10px 20px;
@@ -449,7 +473,7 @@
             <div class="panel">
                 <div class="panel-header">Raw Transcript</div>
                 <div class="panel-body">
-                    <textarea id="transcribed-text" readonly></textarea>
+                    <textarea id="transcribed-text"></textarea>
                 </div>
             </div>
             <div class="panel">
@@ -461,6 +485,7 @@
         </div>
 
         <div class="actions-row">
+            <button id="rewrite-btn">✨ Polish Transcript</button>
             <button id="copy-btn">Copy Polished</button>
             <button id="paste-btn">Paste to Transcript</button>
         </div>
