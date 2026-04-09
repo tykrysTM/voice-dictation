@@ -93,7 +93,7 @@ async function init() {
 
   // Default prompt
   if (elements.systemPrompt) {
-    elements.systemPrompt.value = "Popraw gramatykę, interpunkcję i styl. Nadaj tekstowi profesjonalne, formalne brzmienie. Zachowaj oryginalną treść i strukturę — nie przekształcaj w email ani list.";
+    elements.systemPrompt.value = "Popraw gramatykę, interpunkcję i styl. Nadaj tekstowi profesjonalne, formalne brzmienie. Zachowaj oryginalną treść i strukturę.";
   }
 
   console.log("Voice Dictation initialized");
