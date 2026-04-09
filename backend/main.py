@@ -7,10 +7,10 @@ Voice Dictation API
 import os
 import asyncio
 import base64
+import logging
 import tempfile
-import json
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional
 
 import httpx
 import uvicorn
@@ -24,16 +24,17 @@ from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 
-# Load environment variables
 load_dotenv()
 
-# Configuration from environment variables
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.5:11434/api/chat")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
-WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
-WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")  # e.g. http://192.168.1.5:8001
+logger = logging.getLogger("voice-dictation")
 
-# Global whisper model instance (used only when WHISPER_SERVER_URL is not set)
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.5:11434/api/chat")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:e4b")
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
+WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")
+WHISPER_TIMEOUT = float(os.getenv("WHISPER_TIMEOUT", "300"))
+
 _whisper_model: Optional[WhisperModel] = None
 
 
@@ -43,15 +44,13 @@ async def lifespan(app: FastAPI):
     if not WHISPER_SERVER_URL:
         _whisper_model = WhisperModel(WHISPER_MODEL_NAME, device="cpu", cpu_threads=4)
     else:
-        print(f"Using remote Whisper server: {WHISPER_SERVER_URL}")
+        logger.info(f"Using remote Whisper server: {WHISPER_SERVER_URL}")
     yield
     _whisper_model = None
 
 
-# Create FastAPI app
 app = FastAPI(title="Voice Dictation API", lifespan=lifespan)
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -61,11 +60,10 @@ app.add_middleware(
 )
 
 
-# Pydantic models
 class TranscribeRequest(BaseModel):
-    audio: str  # base64 encoded audio
-    language: str = "pl"  # pl or en
-    model: str = "local"  # local or cloud
+    audio: str
+    language: str = "pl"
+    model: str = "local"
     use_local: bool = True
     system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl."
 
@@ -83,12 +81,12 @@ class TranscribeResponse(BaseModel):
     language: str
     model: str
     success: bool = True
+    rewrite_skipped: bool = False
 
 
-# Helper functions
 async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
-    """Send audio to remote faster-whisper server (GPU on 192.168.1.5)."""
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    """Send audio to remote faster-whisper server."""
+    async with httpx.AsyncClient(timeout=WHISPER_TIMEOUT) as client:
         r = await client.post(
             f"{WHISPER_SERVER_URL}/v1/audio/transcriptions",
             files={"file": ("audio.webm", audio_bytes, "audio/webm")},
@@ -103,20 +101,16 @@ def transcribe_audio_local(audio_bytes: bytes, language: str) -> str:
     with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
         tmp.write(audio_bytes)
         tmp_path = tmp.name
-
     try:
-        segments, info = _whisper_model.transcribe(tmp_path, language=language)
-        text = " ".join(segment.text for segment in segments)
-        return text.strip()
+        segments, _ = _whisper_model.transcribe(tmp_path, language=language)
+        return " ".join(s.text for s in segments).strip()
     finally:
         os.unlink(tmp_path)
 
 
 async def rewrite_with_ollama(text: str, system_prompt: str) -> str:
-    """
-    Rewrite text using Ollama API.
-    """
-    async with httpx.AsyncClient() as client:
+    """Rewrite text using Ollama API."""
+    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
         payload = {
             "model": OLLAMA_MODEL,
             "messages": [
@@ -130,70 +124,85 @@ async def rewrite_with_ollama(text: str, system_prompt: str) -> str:
         return response.json()["message"]["content"].strip()
 
 
-# Endpoints
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
     if WHISPER_SERVER_URL:
-        return {"status": "ok", "whisper": "remote", "whisper_url": WHISPER_SERVER_URL}
-    return {"status": "ok", "whisper": "local", "whisper_loaded": _whisper_model is not None}
+        return {
+            "status": "ok",
+            "whisper": "remote",
+            "whisper_url": WHISPER_SERVER_URL,
+            "ollama_model": OLLAMA_MODEL,
+        }
+    return {
+        "status": "ok",
+        "whisper": "local",
+        "whisper_loaded": _whisper_model is not None,
+        "ollama_model": OLLAMA_MODEL,
+    }
 
 
 @app.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe(request: TranscribeRequest):
-    """
-    Transcribe audio and optionally rewrite with Ollama.
-    """
+    """Transcribe audio and rewrite with Ollama (with graceful fallback)."""
     try:
-        # Decode base64 audio
         audio_bytes = base64.b64decode(request.audio)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {str(e)}")
 
-    # Transcribe: remote GPU server or local CPU fallback
-    if WHISPER_SERVER_URL:
-        original = await transcribe_audio_remote(audio_bytes, request.language)
-    else:
-        loop = asyncio.get_event_loop()
-        original = await loop.run_in_executor(
-            None, transcribe_audio_local, audio_bytes, request.language
-        )
+    # STT
+    try:
+        if WHISPER_SERVER_URL:
+            original = await transcribe_audio_remote(audio_bytes, request.language)
+        else:
+            loop = asyncio.get_event_loop()
+            original = await loop.run_in_executor(
+                None, transcribe_audio_local, audio_bytes, request.language
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Whisper server timeout — try again")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Whisper server error: {e.response.status_code}")
+    except Exception as e:
+        logger.exception("Whisper transcription failed")
+        raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
 
     if not original:
         raise HTTPException(status_code=400, detail="No speech detected in audio")
 
-    # Rewrite with Ollama if requested
+    # LLM rewrite — graceful fallback if Ollama unavailable
+    rewritten = original
+    rewrite_skipped = False
+
     if request.use_local:
-        rewritten = await rewrite_with_ollama(original, request.system_prompt)
-    else:
-        # Cloud rewriting not implemented yet
-        rewritten = original
+        try:
+            rewritten = await rewrite_with_ollama(original, request.system_prompt)
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:
+            logger.warning(f"Ollama rewrite failed ({type(e).__name__}), returning original")
+            rewrite_skipped = True
+        except Exception as e:
+            logger.warning(f"Ollama rewrite unexpected error: {e}, returning original")
+            rewrite_skipped = True
 
     return TranscribeResponse(
         original=original,
         rewritten=rewritten,
         language=request.language,
         model=request.model,
+        rewrite_skipped=rewrite_skipped,
     )
 
 
-# Convert Pydantic validation errors (422) to 400
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     errors = exc.errors()
     messages = [e.get("msg", "Validation error") for e in errors]
-    return JSONResponse(
-        status_code=400,
-        content={"detail": "; ".join(messages)},
-    )
+    return JSONResponse(status_code=400, content={"detail": "; ".join(messages)})
 
 
-# Static files serving
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="static")
 
-
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
