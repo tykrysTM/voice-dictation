@@ -160,16 +160,14 @@ async function blobToBase64(blob) {
 async function transcribe(audioBase64) {
   try {
     const translateToEnglish = elements.translateEn?.checked;
-    const systemPrompt = translateToEnglish
-      ? "Translate the following text to English and rewrite it as a professional, formal message. Fix any errors and improve the style."
-      : elements.systemPrompt.value;
 
     const requestBody = {
       audio: audioBase64,
       language: elements.language.value,
       model: elements.model.value,
       use_local: elements.model.value === "local",
-      system_prompt: systemPrompt
+      system_prompt: elements.systemPrompt.value,
+      translate_to: translateToEnglish ? "English" : ""
     };
 
     console.log("Sending to API:", requestBody);

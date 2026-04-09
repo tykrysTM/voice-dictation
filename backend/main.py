@@ -65,6 +65,7 @@ class TranscribeRequest(BaseModel):
     language: str = "pl"
     model: str = "local"
     use_local: bool = True
+    translate_to: str = ""  # e.g. "English" — overrides system_prompt with explicit translation instruction
     system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl."
 
     @field_validator("language")
@@ -108,14 +109,27 @@ def transcribe_audio_local(audio_bytes: bytes, language: str) -> str:
         os.unlink(tmp_path)
 
 
-async def rewrite_with_ollama(text: str, system_prompt: str) -> str:
+async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str = "") -> str:
     """Rewrite text using Ollama API."""
+    # When translating, embed the instruction directly in user content
+    # — some models ignore system prompts but always follow explicit user instructions
+    if translate_to:
+        user_content = (
+            f"Translate the following text to {translate_to} and rewrite it as a "
+            f"professional, formal message. Output ONLY the {translate_to} result, "
+            f"nothing else.\n\nText to translate:\n{text}"
+        )
+        system_content = f"You are a professional translator and editor. Output only in {translate_to}."
+    else:
+        user_content = text
+        system_content = system_prompt
+
     async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
         payload = {
             "model": OLLAMA_MODEL,
             "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text},
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
             ],
             "stream": False,
         }
@@ -176,7 +190,7 @@ async def transcribe(request: TranscribeRequest):
 
     if request.use_local:
         try:
-            rewritten = await rewrite_with_ollama(original, request.system_prompt)
+            rewritten = await rewrite_with_ollama(original, request.system_prompt, request.translate_to)
         except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:
             logger.warning(f"Ollama rewrite failed ({type(e).__name__}), returning original")
             rewrite_skipped = True
