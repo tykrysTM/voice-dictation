@@ -37,6 +37,7 @@ let _processingStart = null;
 
 function startProcessingTimer() {
   _processingStart = Date.now();
+  elements.recStatus.classList.add("processing");
   _processingTimer = setInterval(() => {
     const elapsed = ((Date.now() - _processingStart) / 1000).toFixed(1);
     elements.recStatus.textContent = `Processing… ${elapsed}s`;
@@ -49,6 +50,7 @@ function stopProcessingTimer() {
     _processingTimer = null;
     _processingStart = null;
   }
+  elements.recStatus.classList.remove("processing");
 }
 
 // Init
