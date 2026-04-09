@@ -188,7 +188,7 @@ async def transcribe(request: TranscribeRequest):
     rewritten = original
     rewrite_skipped = False
 
-    if request.use_local:
+    if request.use_local or request.translate_to:
         try:
             rewritten = await rewrite_with_ollama(original, request.system_prompt, request.translate_to)
         except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:

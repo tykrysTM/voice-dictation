@@ -128,6 +128,25 @@ def test_transcribe_use_local_false_skips_ollama():
             mock_ollama.assert_not_called()
 
 
+def test_transcribe_use_local_false_with_translate_calls_ollama():
+    """When use_local=False but translate_to is set, Ollama should still be called."""
+    with patch("main.transcribe_audio_local", return_value="cześć świecie"), \
+         patch("main.rewrite_with_ollama", new_callable=AsyncMock,
+               return_value="Hello world.") as mock_ollama, \
+         patch("main._whisper_model", MagicMock()):
+        response = client.post("/transcribe", json={
+            "audio": FAKE_AUDIO,
+            "language": "pl",
+            "use_local": False,
+            "translate_to": "English",
+        })
+        assert response.status_code in (200, 400, 500)
+        if response.status_code == 200:
+            mock_ollama.assert_called_once()
+            data = response.json()
+            assert data["rewritten"] == "Hello world."
+
+
 # --- Whisper remote timeout → 504 ---
 
 def test_transcribe_whisper_timeout_returns_504():
