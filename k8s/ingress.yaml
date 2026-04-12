@@ -18,7 +18,18 @@ spec:
                 name: voice-dictation
                 port:
                   number: 8000
+    - host: tm-labs.duckdns.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: voice-dictation
+                port:
+                  number: 8000
   tls:
     - hosts:
         - dictation.lab.tmforge.pl
+        - tm-labs.duckdns.org
       secretName: voice-dictation-tls
