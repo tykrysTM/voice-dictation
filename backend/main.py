@@ -29,6 +29,7 @@ from faster_whisper import WhisperModel
 
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("voice-dictation")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.7:11434/api/chat")
@@ -108,12 +109,15 @@ class RewriteResponse(BaseModel):
 
 async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
     """Send audio to remote faster-whisper server."""
+    logger.info(f"Sending {len(audio_bytes)} bytes of audio to Whisper server")
     async with httpx.AsyncClient(timeout=WHISPER_TIMEOUT) as client:
         r = await client.post(
             f"{WHISPER_SERVER_URL}/v1/audio/transcriptions",
             files={"file": ("audio.webm", audio_bytes, "audio/webm")},
             data={"language": language, "model": "large-v3"},
         )
+        if not r.is_success:
+            logger.error(f"Whisper server error {r.status_code}: {r.text[:500]}")
         r.raise_for_status()
         return r.json()["text"].strip()
 
