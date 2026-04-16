@@ -18,6 +18,8 @@ const elements = {
   backendUrl: document.getElementById("backend-url"),
   language: document.getElementById("language"),
   model: document.getElementById("model"),
+  ollamaBackend: document.getElementById("ollama-backend"),
+  ollamaBackendGroup: document.getElementById("ollama-backend-group"),
   systemPrompt: document.getElementById("system-prompt"),
   copyBtn: document.getElementById("copy-btn"),
   pasteBtn: document.getElementById("paste-btn"),
@@ -46,6 +48,9 @@ async function init() {
   elements.stopRec.addEventListener("click", stopRecording);
   elements.copyBtn.addEventListener("click", copyToClipboard);
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
+  elements.model.addEventListener("change", () => {
+    elements.ollamaBackendGroup.style.display = elements.model.value === "local" ? "" : "none";
+  });
 
   console.log("Voice Dictation initialized");
 }
@@ -122,7 +127,7 @@ async function transcribe(audioBase64) {
       audio: audioBase64,
       language: elements.language.value,
       model: elements.model.value,
-      use_local: elements.model.value === "local",
+      ollama_backend: elements.ollamaBackend.value,
       system_prompt: elements.systemPrompt.value
     };
 
@@ -146,7 +151,8 @@ async function transcribe(audioBase64) {
       elements.transcribedText.value = result.original;
       elements.rewrittenText.textContent = result.rewritten;
       elements.rewrittenText.focus();
-      saveToHistory(result.rewritten);
+      const backendLabel = result.ollama_backend === "windows" ? "Windows CUDA ⚡" : "Mac Studio Metal 🍎";
+      saveToHistory(result.rewritten, result.model === "local" ? backendLabel : "Cloud ☁️");
       console.log("Transcription complete:", result);
     } else {
       elements.rewrittenText.textContent = "❌ Błąd API: " + JSON.stringify(result);
@@ -194,12 +200,12 @@ function fallbackCopy(text) {
   alert("✅ Skopiowano do schowka!");
 }
 
-function saveToHistory(text) {
+function saveToHistory(text, backendLabel = "") {
   const timestamp = new Date().toLocaleTimeString();
   const item = document.createElement("div");
   item.className = "history-item";
   item.innerHTML = `
-    <h4>🕒 ${timestamp}</h4>
+    <h4>🕒 ${timestamp}${backendLabel ? ` · ${backendLabel}` : ""}</h4>
     <p>${text.substring(0, 200)}...</p>
   `;
   elements.historyList.prepend(item);

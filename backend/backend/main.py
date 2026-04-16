@@ -28,7 +28,8 @@ app.add_middleware(
 LOCAL_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 CLOUD_MODEL = os.getenv("CLOUD_MODEL", "claude-sonnet-4-6")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.5:11434/api/chat")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.7:11434/api/chat")
+OLLAMA_URL_WINDOWS = os.getenv("OLLAMA_URL_WINDOWS", "http://192.168.1.5:11434/api/chat")
 
 # Whisper model (lazy load)
 whisper_model = None
@@ -39,6 +40,7 @@ class TranscribeRequest(BaseModel):
     audio: str  # base64 PCM16 16kHz
     language: str = "pl"  # "pl" or "en"
     model: str = "local"  # "local" or "cloud"
+    ollama_backend: str = "mac"  # "mac" (Metal) or "windows" (CUDA)
     system_prompt: str = "Przekształć to na profesjonalną, formalną wiadomość. Usuń błędy, popraw styl, formatuj jeśli potrzeba."
 
     @field_validator("language")
@@ -55,6 +57,13 @@ class TranscribeRequest(BaseModel):
             raise ValueError("model must be 'local' or 'cloud'")
         return v
 
+    @field_validator("ollama_backend")
+    @classmethod
+    def validate_ollama_backend(cls, v: str) -> str:
+        if v not in {"mac", "windows"}:
+            raise ValueError("ollama_backend must be 'mac' or 'windows'")
+        return v
+
 
 class TranscribeResponse(BaseModel):
     """Response model."""
@@ -62,6 +71,7 @@ class TranscribeResponse(BaseModel):
     rewritten: str
     language: str
     model: str
+    ollama_backend: str
     success: bool
 
 
@@ -108,12 +118,13 @@ async def transcribe_with_whisper(audio_bytes: bytes, language: str) -> str:
         raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
 
 
-async def rewrite_with_ollama(text: str, system_prompt: str) -> str:
+async def rewrite_with_ollama(text: str, system_prompt: str, backend: str = "mac") -> str:
     """Rewrite using local Ollama model."""
+    url = OLLAMA_URL if backend == "mac" else OLLAMA_URL_WINDOWS
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
-                OLLAMA_URL,
+                url,
                 json={
                     "model": LOCAL_MODEL,
                     "messages": [
@@ -207,7 +218,7 @@ async def transcribe(request: TranscribeRequest):
     # Rewrite
     try:
         if request.model == "local":
-            rewritten = await rewrite_with_ollama(transcribed_text, system_prompt)
+            rewritten = await rewrite_with_ollama(transcribed_text, system_prompt, request.ollama_backend)
         else:
             rewritten = await rewrite_with_anthropic(transcribed_text, system_prompt)
     except HTTPException:
@@ -220,6 +231,7 @@ async def transcribe(request: TranscribeRequest):
         rewritten=rewritten,
         language=request.language,
         model=request.model,
+        ollama_backend=request.ollama_backend,
         success=True,
     )
 
