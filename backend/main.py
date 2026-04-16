@@ -38,7 +38,8 @@ OLLAMA_URL_WINDOWS = os.getenv("OLLAMA_URL_WINDOWS", "http://192.168.1.5:11434/a
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
-WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")
+WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")          # Windows CUDA (default)
+WHISPER_SERVER_URL_MAC = os.getenv("WHISPER_SERVER_URL_MAC", "")  # Mac Studio Metal
 WHISPER_TIMEOUT = float(os.getenv("WHISPER_TIMEOUT", "300"))
 REALTIMESTT_URL = os.getenv("REALTIMESTT_URL", "ws://192.168.1.5:8002")
 SETTINGS_PASSWORD = os.getenv("SETTINGS_PASSWORD", "AI4workFaster")
@@ -108,11 +109,16 @@ class RewriteResponse(BaseModel):
     rewrite_skipped: bool = False
 
 
-async def transcribe_audio_remote(audio_bytes: bytes, language: str) -> str:
-    """Send audio to remote faster-whisper server."""
+async def transcribe_audio_remote(audio_bytes: bytes, language: str, backend: str = "windows") -> str:
+    """Send audio to remote Whisper server (Windows CUDA or Mac Metal)."""
+    if backend == "mac" and WHISPER_SERVER_URL_MAC:
+        url = WHISPER_SERVER_URL_MAC
+    else:
+        url = WHISPER_SERVER_URL
+    logger.info(f"STT backend={backend} → {url} ({len(audio_bytes)} bytes)")
     async with httpx.AsyncClient(timeout=WHISPER_TIMEOUT) as client:
         r = await client.post(
-            f"{WHISPER_SERVER_URL}/v1/audio/transcriptions",
+            f"{url}/v1/audio/transcriptions",
             files={"file": ("audio.webm", audio_bytes, "audio/webm")},
             data={"language": language, "model": "large-v3"},
         )
@@ -218,10 +224,15 @@ async def transcribe(request: TranscribeRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64 audio: {str(e)}")
 
-    # STT
+    # STT — route to Mac Metal or Windows CUDA based on selected backend
     try:
-        if WHISPER_SERVER_URL:
-            original = await transcribe_audio_remote(audio_bytes, request.language)
+        whisper_available = (
+            (request.ollama_backend == "mac" and WHISPER_SERVER_URL_MAC)
+            or (request.ollama_backend != "mac" and WHISPER_SERVER_URL)
+            or WHISPER_SERVER_URL
+        )
+        if whisper_available:
+            original = await transcribe_audio_remote(audio_bytes, request.language, request.ollama_backend)
         else:
             loop = asyncio.get_event_loop()
             original = await loop.run_in_executor(
