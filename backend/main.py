@@ -31,8 +31,9 @@ load_dotenv()
 
 logger = logging.getLogger("voice-dictation")
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.5:11434/api/chat")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://192.168.1.7:11434/api/chat")
+OLLAMA_URL_WINDOWS = os.getenv("OLLAMA_URL_WINDOWS", "http://192.168.1.5:11434/api/chat")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "120"))
 WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")
@@ -70,6 +71,7 @@ class TranscribeRequest(BaseModel):
     language: str = "pl"
     model: str = "local"
     use_local: bool = True
+    ollama_backend: str = "mac"  # "mac" = Mac Studio (Metal), "windows" = Windows PC (CUDA)
     translate_to: str = ""  # e.g. "English" — overrides system_prompt with explicit translation instruction
     system_prompt: str = "Popraw gramatykę, interpunkcję i styl. Nadaj tekstowi profesjonalne, formalne brzmienie. Zachowaj oryginalną treść i strukturę."
 
@@ -152,7 +154,7 @@ def sanitize_input(text: str) -> str:
     return text
 
 
-async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str = "") -> str:
+async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str = "", backend: str = "mac") -> str:
     """Rewrite text using Ollama API."""
     clean_text = sanitize_input(text)
 
@@ -179,7 +181,8 @@ async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str =
             ],
             "stream": False,
         }
-        response = await client.post(OLLAMA_URL, json=payload)
+        url = OLLAMA_URL if backend == "mac" else OLLAMA_URL_WINDOWS
+        response = await client.post(url, json=payload)
         response.raise_for_status()
         return response.json()["message"]["content"].strip()
 
@@ -236,7 +239,7 @@ async def transcribe(request: TranscribeRequest):
 
     if request.use_local or request.translate_to:
         try:
-            rewritten = await rewrite_with_ollama(original, request.system_prompt, request.translate_to)
+            rewritten = await rewrite_with_ollama(original, request.system_prompt, request.translate_to, request.ollama_backend)
         except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:
             logger.warning(f"Ollama rewrite failed ({type(e).__name__}), returning original")
             rewrite_skipped = True

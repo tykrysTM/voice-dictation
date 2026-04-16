@@ -20,6 +20,7 @@ const elements = {
   backendUrl: document.getElementById("backend-url"),
   language: document.getElementById("language"),
   model: document.getElementById("model"),
+  ollamaBackend: document.getElementById("ollama-backend"),
   systemPrompt: document.getElementById("system-prompt"),
   translateEn: document.getElementById("translate-en"),
   rewriteBtn: document.getElementById("rewrite-btn"),
@@ -173,6 +174,7 @@ async function transcribe(audioBase64) {
       language: elements.language.value,
       model: elements.model.value,
       use_local: elements.model.value === "local",
+      ollama_backend: elements.ollamaBackend?.value || "mac",
       system_prompt: elements.systemPrompt.value,
       translate_to: translateToEnglish ? "English" : ""
     };
