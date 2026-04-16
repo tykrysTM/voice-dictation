@@ -184,6 +184,7 @@ async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str =
                 {"role": "user", "content": user_content},
             ],
             "stream": False,
+            "think": False,  # disable Qwen3 extended thinking for low-latency rewrites
         }
         url = OLLAMA_URL if backend == "mac" else OLLAMA_URL_WINDOWS
         response = await client.post(url, json=payload)
