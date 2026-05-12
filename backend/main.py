@@ -13,6 +13,7 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 import uvicorn
@@ -335,7 +336,9 @@ async def websocket_live(websocket: WebSocket):
         return
 
     try:
-        async with ws_client.connect(stt_url) as stt_ws:
+        _parsed = urlparse(stt_url)
+        _origin = f"http://{_parsed.netloc}"
+        async with ws_client.connect(stt_url, additional_headers={"Origin": _origin}) as stt_ws:
             await stt_ws.send(json.dumps({"language": language}))
 
             async def forward_audio():
