@@ -249,6 +249,7 @@ async function rewriteTranscript() {
       body: JSON.stringify({
         text,
         language: elements.language.value,
+        ollama_backend: elements.ollamaBackend?.value || "mac",
         system_prompt: elements.systemPrompt?.value || "",
         translate_to: elements.translateMode?.value || ""
       })
