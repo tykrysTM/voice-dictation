@@ -41,7 +41,8 @@ WHISPER_MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 WHISPER_SERVER_URL = os.getenv("WHISPER_SERVER_URL", "")          # Windows CUDA (default)
 WHISPER_SERVER_URL_MAC = os.getenv("WHISPER_SERVER_URL_MAC", "")  # Mac Studio Metal
 WHISPER_TIMEOUT = float(os.getenv("WHISPER_TIMEOUT", "300"))
-REALTIMESTT_URL = os.getenv("REALTIMESTT_URL", "ws://192.168.1.5:8002")
+REALTIMESTT_URL     = os.getenv("REALTIMESTT_URL",     "ws://192.168.1.5:8002")
+REALTIMESTT_URL_MAC = os.getenv("REALTIMESTT_URL_MAC", "")
 SETTINGS_PASSWORD = os.getenv("SETTINGS_PASSWORD", "AI4workFaster")
 
 _whisper_model: Optional[WhisperModel] = None
@@ -314,20 +315,27 @@ async def websocket_live(websocket: WebSocket):
     """WebSocket proxy: browser audio → RealtimeSTT GPU server → Ollama rewrite → browser."""
     await websocket.accept()
 
-    if not REALTIMESTT_URL:
-        await websocket.send_json({"type": "error", "message": "RealtimeSTT server not configured (REALTIMESTT_URL missing)"})
-        await websocket.close()
-        return
-
     # First message: config from browser
     config = await websocket.receive_json()
     language = config.get("language", "pl")
     system_prompt = config.get("system_prompt", "Przekształć to na profesjonalną, formalną wiadomość.")
     translate_to = config.get("translate_to", "")
     use_rewrite = config.get("use_rewrite", True)
+    ollama_backend = config.get("ollama_backend", "windows")
+
+    stt_url = (
+        REALTIMESTT_URL_MAC
+        if ollama_backend == "mac" and REALTIMESTT_URL_MAC
+        else REALTIMESTT_URL
+    )
+
+    if not stt_url:
+        await websocket.send_json({"type": "error", "message": "RealtimeSTT server not configured"})
+        await websocket.close()
+        return
 
     try:
-        async with ws_client.connect(REALTIMESTT_URL) as stt_ws:
+        async with ws_client.connect(stt_url) as stt_ws:
             await stt_ws.send(json.dumps({"language": language}))
 
             async def forward_audio():

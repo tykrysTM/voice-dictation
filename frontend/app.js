@@ -364,7 +364,8 @@ async function startGpuLive() {
       language: elements.language.value,
       system_prompt: elements.systemPrompt?.value || "",
       translate_to: elements.translateMode?.value || "",
-      use_rewrite: elements.model.value === "local"
+      use_rewrite: elements.model.value === "local",
+      ollama_backend: elements.ollamaBackend?.value || "mac"
     }));
   };
 
