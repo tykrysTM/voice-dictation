@@ -22,8 +22,9 @@ const elements = {
   model: document.getElementById("model"),
   ollamaBackend: document.getElementById("ollama-backend"),
   systemPrompt: document.getElementById("system-prompt"),
-  translateEn: document.getElementById("translate-en"),
+  translateMode: document.getElementById("translate-mode"),
   rewriteBtn: document.getElementById("rewrite-btn"),
+  copyRawBtn: document.getElementById("copy-raw-btn"),
   copyBtn: document.getElementById("copy-btn"),
   pasteBtn: document.getElementById("paste-btn"),
   liveModeBtn: document.getElementById("live-mode-btn")
@@ -77,6 +78,7 @@ async function init() {
   elements.startRec.addEventListener("click", startRecording);
   elements.stopRec.addEventListener("click", stopRecording);
   elements.rewriteBtn.addEventListener("click", rewriteTranscript);
+  elements.copyRawBtn.addEventListener("click", copyRawToClipboard);
   elements.copyBtn.addEventListener("click", copyToClipboard);
   elements.pasteBtn.addEventListener("click", pasteFromClipboard);
   elements.liveModeBtn.addEventListener("click", toggleGpuLive);
@@ -167,8 +169,6 @@ async function blobToBase64(blob) {
 
 async function transcribe(audioBase64) {
   try {
-    const translateToEnglish = elements.translateEn?.checked;
-
     const requestBody = {
       audio: audioBase64,
       language: elements.language.value,
@@ -176,7 +176,7 @@ async function transcribe(audioBase64) {
       use_local: elements.model.value === "local",
       ollama_backend: elements.ollamaBackend?.value || "mac",
       system_prompt: elements.systemPrompt.value,
-      translate_to: translateToEnglish ? "English" : ""
+      translate_to: elements.translateMode?.value || ""
     };
 
     console.log("Sending to API:", requestBody);
@@ -243,7 +243,6 @@ async function rewriteTranscript() {
   startProcessingTimer();
 
   try {
-    const translateToEnglish = elements.translateEn?.checked;
     const response = await fetch("/rewrite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -251,7 +250,7 @@ async function rewriteTranscript() {
         text,
         language: elements.language.value,
         system_prompt: elements.systemPrompt?.value || "",
-        translate_to: translateToEnglish ? "English" : ""
+        translate_to: elements.translateMode?.value || ""
       })
     });
 
@@ -272,6 +271,21 @@ async function rewriteTranscript() {
   } finally {
     elements.rewriteBtn.disabled = false;
     elements.rewriteBtn.textContent = "✨ Polish Transcript";
+  }
+}
+
+async function copyRawToClipboard() {
+  const text = elements.transcribedText.value;
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = elements.copyRawBtn.textContent;
+    elements.copyRawBtn.textContent = "Copied!";
+    setTimeout(() => { elements.copyRawBtn.textContent = orig; }, 1500);
+  } catch (error) {
+    console.error("Clipboard error:", error);
+    fallbackCopy(text);
   }
 }
 
@@ -349,7 +363,7 @@ async function startGpuLive() {
     gpuLiveWs.send(JSON.stringify({
       language: elements.language.value,
       system_prompt: elements.systemPrompt?.value || "",
-      translate_to: elements.translateEn?.checked ? "English" : "",
+      translate_to: elements.translateMode?.value || "",
       use_rewrite: elements.model.value === "local"
     }));
   };

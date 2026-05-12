@@ -29,10 +29,12 @@ Frontend (Vanilla JS)
 - Nagrywanie audio w przeglądarce (MediaRecorder API)
 - Hotkey `Ctrl+Shift+D` — start/stop nagrywania
 - Wybór języka: Polski (PL) / English (EN)
-- Checkbox **Translate to English** — tłumaczy i przepisuje na angielski
-- Licznik czasu przetwarzania (pomarańczowy pasek `Processing… Xs`)
-- Kopiowanie do schowka
-- Konfigurowalny System Prompt (panel Settings)
+- **Tryb tłumaczenia** (dropdown): `PL→Popraw` / `PL→EN` / `EN→PL` — działa dla nagrań i ręcznego rewrite
+- **Live Mode** — transkrypcja strumieniowa przez WebSocket + Whisper GPU + Ollama
+- Licznik czasu przetwarzania (pasek `Processing… Xs`)
+- **Copy Raw** — kopiuje surowy transkrypt do schowka
+- **Copy Polished** — kopiuje przepisany tekst
+- Konfigurowalny System Prompt (panel Settings, chroniony hasłem)
 - Graceful fallback: jeśli Ollama nie odpowie → zwraca oryginalny tekst zamiast błędu
 - Fallback: CPU Whisper gdy GPU server niedostępny
 
@@ -87,7 +89,7 @@ curl -X POST https://dictation.lab.tmforge.pl/transcribe \
 | `audio` | string | wymagane | Audio webm zakodowane base64 |
 | `language` | `"pl"` / `"en"` | `"pl"` | Język mowy |
 | `use_local` | bool | `true` | `true` = Ollama rewrite, `false` = zwróć oryginalny tekst |
-| `translate_to` | string | `""` | Jeśli `"English"` — tłumaczy zamiast przepisywać |
+| `translate_to` | string | `""` | `"English"` → tłumaczy na angielski; `"Polish"` → tłumaczy na polski; `""` → tylko przepisuje |
 | `model` | string | `"local"` | Metadane (zwracane w odpowiedzi) |
 | `system_prompt` | string | PL prompt | Instrukcja dla LLM (ignorowana gdy `translate_to` ustawione) |
 
