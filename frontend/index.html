@@ -570,9 +570,11 @@
                 <button id="live-mode-btn" title="Live transcription via Whisper GPU">🎙 Live</button>
             </div>
             <div class="ctrl-divider"></div>
-            <select id="language">
-                <option value="pl">PL — Polish</option>
-                <option value="en">EN — English</option>
+            <select id="translate-mode" title="Translation / rewrite mode">
+                <option value="" selected>PL — Popraw</option>
+                <option value="English">PL → EN</option>
+                <option value="Polish">EN → PL</option>
+                <option value="English_improve">ENG — Improve</option>
             </select>
             <select id="model">
                 <option value="local">+ Rewrite</option>
@@ -581,11 +583,6 @@
             <select id="ollama-backend" title="Ollama backend">
                 <option value="mac">🍎 Mac Studio</option>
                 <option value="windows">⚡ Windows CUDA</option>
-            </select>
-            <select id="translate-mode" title="Translation / rewrite mode">
-                <option value="">PL — Popraw</option>
-                <option value="English">PL → EN</option>
-                <option value="Polish">EN → PL</option>
             </select>
         </div>
 

@@ -171,7 +171,16 @@ async def rewrite_with_ollama(text: str, system_prompt: str, translate_to: str =
     """Rewrite text using Ollama API."""
     clean_text = sanitize_input(text)
 
-    if translate_to:
+    if translate_to == "English_improve":
+        user_content = clean_text
+        system_content = (
+            "You are a professional English editor. "
+            "Fix grammar, punctuation, and style. "
+            "Make the text formal and professional. "
+            "Keep the original meaning. "
+            "Output ONLY the improved English text — no explanations, no comments."
+        )
+    elif translate_to:
         user_content = (
             f"Translate the text below into {translate_to}. "
             f"Output ONLY the {translate_to} translation — no original text, no explanation, no comments.\n\n"

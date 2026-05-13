@@ -18,7 +18,6 @@ const elements = {
   transcribedText: document.getElementById("transcribed-text"),
   rewrittenText: document.getElementById("rewritten-text"),
   backendUrl: document.getElementById("backend-url"),
-  language: document.getElementById("language"),
   model: document.getElementById("model"),
   ollamaBackend: document.getElementById("ollama-backend"),
   systemPrompt: document.getElementById("system-prompt"),
@@ -29,6 +28,12 @@ const elements = {
   pasteBtn: document.getElementById("paste-btn"),
   liveModeBtn: document.getElementById("live-mode-btn")
 };
+
+// Derive Whisper source language from translate-mode selection
+function sourceLanguage() {
+  const mode = elements.translateMode?.value;
+  return (mode === "Polish" || mode === "English_improve") ? "en" : "pl";
+}
 
 // Audio recorder
 let mediaRecorder = null;
@@ -171,7 +176,7 @@ async function transcribe(audioBase64) {
   try {
     const requestBody = {
       audio: audioBase64,
-      language: elements.language.value,
+      language: sourceLanguage(),
       model: elements.model.value,
       use_local: elements.model.value === "local",
       ollama_backend: elements.ollamaBackend?.value || "mac",
@@ -248,7 +253,7 @@ async function rewriteTranscript() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text,
-        language: elements.language.value,
+        language: sourceLanguage(),
         ollama_backend: elements.ollamaBackend?.value || "mac",
         system_prompt: elements.systemPrompt?.value || "",
         translate_to: elements.translateMode?.value || ""
@@ -362,7 +367,7 @@ async function startGpuLive() {
 
   gpuLiveWs.onopen = () => {
     gpuLiveWs.send(JSON.stringify({
-      language: elements.language.value,
+      language: sourceLanguage(),
       system_prompt: elements.systemPrompt?.value || "",
       translate_to: elements.translateMode?.value || "",
       use_rewrite: elements.model.value === "local",
